@@ -1,0 +1,2 @@
+git+https://github.com/Woodie-07/python-elgato-streamdeck.git
+pillow

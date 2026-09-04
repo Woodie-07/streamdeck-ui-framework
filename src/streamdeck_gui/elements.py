@@ -11,51 +11,76 @@ class Element:
         self._parent: Optional[Element] = None
         self._root: Optional[RootElement] = None
 
-    def _attach(self, parent: Element, root: RootElement) -> None:
+    def attach(self, parent: Element, root: RootElement) -> None:
+        assert self._root is None
         self._parent = parent
         self._root = root
+
+    def detach(self) -> None:
+        self.set_hidden()
+        self._parent = self._root = None
 
     def set_visible(self) -> None: pass
     def set_hidden(self) -> None: pass
 
+class VisibilityAware(Element):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._visible = False
+
+    def set_visible(self):
+        super().set_visible()
+        self._visible = True
+
+    def set_hidden(self):
+        super().set_hidden()
+        self._visible = False
+
 class RootElement(Element):
     def __init__(self, deck: StreamDeck) -> None:
         super().__init__()
-        self._attach(self, self)
+        self.attach(self, self)
         self._deck = deck
         self._button_section: Optional[ButtonSection] = None
         self._touchscreen: Optional[Touchscreen] = None
         self._dial_section: Optional[DialSection] = None
+        self._down_buttons: dict[int, DialSection] = {}
 
     def get_btns(self) -> Optional[ButtonSection]:
         return self._button_section
 
     def set_btns(self, btn_section: ButtonSection) -> None:
-        if self._button_section is not None: self._button_section.set_hidden()
+        if self._button_section is not None: self._button_section.detach()
         self._button_section = btn_section
-        btn_section._attach(self, self)
+        btn_section.attach(self, self)
         btn_section.set_visible()
 
     def get_touchscreen(self) -> Optional[Touchscreen]:
         return self._touchscreen
 
     def set_touchscreen(self, touchscreen: Touchscreen) -> None:
-        if self._touchscreen is not None: self._touchscreen.set_hidden()
+        if self._touchscreen is not None: self._touchscreen.detach()
         self._touchscreen = touchscreen
-        touchscreen._attach(self, self)
+        touchscreen.attach(self, self)
         touchscreen.set_visible()
 
     def get_dials(self) -> Optional[DialSection]:
         return self._dial_section
 
     def set_dials(self, dial_section: DialSection) -> None:
-        if self._dial_section is not None: self._dial_section.set_hidden()
+        if self._dial_section is not None: self._dial_section.detach()
         self._dial_section = dial_section
-        dial_section._attach(self, self)
+        dial_section.attach(self, self)
         dial_section.set_visible()
 
     def btn_update(self, event: ButtonEvent) -> None:
+        if not event.pressed:
+            if (section := self._down_buttons.pop(event.idx)) is not None:
+                section.press_update(event)
+            return
+        
         if self._button_section is not None:
+            self._down_buttons[event.idx] = self._button_section
             self._button_section.press_update(event)
 
     def set_button_image(self, btn_idx: int, image: Optional[Image]) -> None:
@@ -88,9 +113,13 @@ class OneOfElement(Element):
         super().__init__()
         self._idx: Optional[int] = None
 
-    def _attach(self, parent: Element, root: RootElement, idx: int):
-        super()._attach(parent, root)
+    def attach(self, parent: Element, root: RootElement, idx: int):
+        super().attach(parent, root)
         self._idx = idx
+
+    def detach(self):
+        super().detach()
+        self._idx = None
 
 class Drawable(ABC):
     @abstractmethod
@@ -104,15 +133,20 @@ class Button(OneOfElement, Pressable, Drawable):
     def down(self) -> None: pass
     def up(self) -> None: pass
 
-class Section[T: OneOfElement](Element):
-    def __init__(self, items: Optional[List[Optional[T]]]) -> None:
+class Section[T: OneOfElement](VisibilityAware, Element):
+    def __init__(self, items: Optional[List[Optional[T]]] = None) -> None:
         super().__init__()
         self._items: List[Optional[T]] = items or [None] * 8
 
-    def _attach(self, parent, root):
-        super()._attach(parent, root)
+    def attach(self, parent, root):
+        super().attach(parent, root)
         for i, item in enumerate(self._items):
-            if item is not None: item._attach(parent, root, i)
+            if item is not None: item.attach(parent, root, i)
+
+    def detach(self):
+        super().detach()
+        for item in self._items:
+            if item is not None: item.detach()
 
     def set_visible(self) -> None:
         super().set_visible()
@@ -124,6 +158,25 @@ class Section[T: OneOfElement](Element):
         for item in self._items:
             if item is not None: item.set_hidden()
 
+    def remove(self, idx: int, clear: bool = True) -> Optional[T]:
+        item = self._items[idx]
+        if item is None: return None
+        item.detach()
+        self._items[idx] = None
+        if clear: self._root.set_button_image(idx, None)
+        return item
+
+    def set(self, idx: int, item: Optional[T]) -> Optional[T]:
+        prev = self.remove(idx, clear=False)
+        self._items[idx] = item
+        if item is None:
+            self._root.set_button_image(idx, None)
+            return
+        item.attach(self, self._root, idx)
+        if self._visible: item.set_visible()
+        return prev
+        
+
 class PressableSection[T: Pressable](Section[T]):
     def press_update(self, event: PressEvent) -> None:
         if (btn := self._items[event.idx]) is not None:
@@ -133,6 +186,8 @@ class PressableSection[T: Pressable](Section[T]):
 class ButtonSection(PressableSection[Button]): pass
 
 class Touchscreen(Element, Drawable):
+    def update(self, event: TouchscreenEvent) -> None: pass
+
     def _draw_image(self, image: Optional[Image], x_pos: int = 0, y_pos: int = 0, width: int = 800, height: int = 100) -> None:
         self._root.set_touchscreen_image(image, x_pos, y_pos, width, height)
 
@@ -149,26 +204,15 @@ class ButtonImage(PillowImage):
         super().__init__(image.resize((120, 120)))
 
 class StaticImage(Element, Drawable, ABC):
-    IMAGE: Optional[Image] = None
+    def __init__(self, image: Optional[Image]):
+        super().__init__()
+        self._image = image
 
     def set_visible(self) -> None:
         super().set_visible()
-        self._draw_image(self.IMAGE)
+        self._draw_image(self._image)
 
 class StaticButton(StaticImage, Button): pass
-
-class VisibilityAwareButton(Button):
-    def __init__(self):
-        super().__init__()
-        self._visible = False
-
-    def set_visible(self):
-        super().set_visible()
-        self._visible = True
-
-    def set_hidden(self):
-        super().set_hidden()
-        self._visible = False
         
 class TouchscreenImage(PillowImage):
     def __init__(self, image: PILImage.Image) -> None:

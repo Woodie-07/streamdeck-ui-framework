@@ -5,7 +5,7 @@ from PIL import Image
 from typing import Optional
 
 from streamdeck_gui.setup import setup
-from streamdeck_gui.elements import ButtonSection, VisibilityAwareButton, StaticTouchscreen, TouchscreenImage, DialSection, Dial
+from streamdeck_gui.elements import ButtonSection, VisibilityAware, Button, StaticTouchscreen, TouchscreenImage, DialSection, Dial
 from streamdeck_gui.events import TouchscreenEvent
 from streamdeck_gui.image import PillowImage
 
@@ -46,7 +46,7 @@ class SSHHost:
     def open(self) -> None:
         ssh_to(self._name)
 
-class ServiceButton(VisibilityAwareButton):
+class ServiceButton(VisibilityAware, Button):
     WHITE_IMG = PillowImage(Image.new("RGB", (120, 120), "WHITE"))
 
     @staticmethod
@@ -63,7 +63,6 @@ class ServiceButton(VisibilityAwareButton):
         self._unk_image = self._build_img_with_bg(icon, "PURPLE")
         self._bad_image = self._build_img_with_bg(icon, "RED")
         self._state: Optional[bool] = None
-        self._visible = False
         self._down = False
         asyncio.create_task(self._probe_loop())
 
@@ -94,7 +93,6 @@ class ServiceButton(VisibilityAwareButton):
         self._draw_image(self.get_image())
 
 class LogTouchscreen(StaticTouchscreen):
-    IMAGE = TouchscreenImage.from_file("btn.webp")
     def update(self, event: TouchscreenEvent) -> None:
         print(event)
 
@@ -108,16 +106,16 @@ class LogDial(Dial):
 async def main():
     streamdecks = DeviceManager().enumerate()
 
-    print("Found {} Stream Deck(s).\n".format(len(streamdecks)))
+    print(f"Found {len(streamdecks)} Stream Deck(s).")
 
     decks = set()
-    for index, deck in enumerate(streamdecks):
+    for deck in streamdecks:
         pi_img = Image.open("pi.png").resize((120, 120))
         server_img = Image.open("server.png").resize((120, 120))
         setup(deck, ButtonSection([
-            ServiceButton(SSHHost("pi"), pi_img),
+            ServiceButton(SSHHost("pi5-nas"), pi_img),
             *(ServiceButton(SSHHost(name), server_img) for name in ("server1", "server2", "server3", "server4", "server5", "server6", "server7"))
-        ]), LogTouchscreen(), DialSection([LogDial() for _ in range(4)]))
+        ]), LogTouchscreen(TouchscreenImage.from_file("btn.webp")), DialSection([LogDial() for _ in range(4)]))
         decks.add(deck)
 
     for deck in decks: await deck.wait()

@@ -1,11 +1,18 @@
 from typing import Optional
 from StreamDeck.Devices.StreamDeck import DialEventType, TouchscreenEventType
-from StreamDeck.DeviceManager import StreamDeck
+from StreamDeck.DeviceManager import StreamDeck, DeviceManager
 
 from .events import ButtonEvent, TouchscreenEventShort, TouchscreenEventLong, TouchscreenEventDrag, DialPushEvent, DialTurnEvent
 from .elements import ButtonSection, Touchscreen, DialSection, RootElement
 
-def setup(deck: StreamDeck, btn_section: Optional[ButtonSection], touchscreen: Optional[Touchscreen], dial_section: Optional[DialSection]):
+def run(btn_section: Optional[ButtonSection] = None, touchscreen: Optional[Touchscreen] = None, dial_section: Optional[DialSection] = None):
+    streamdecks = DeviceManager().enumerate()
+
+    for deck in streamdecks:
+        setup_on(deck, btn_section, touchscreen, dial_section)
+        return deck
+
+def setup_on(deck: StreamDeck, btn_section: Optional[ButtonSection] = None, touchscreen: Optional[Touchscreen] = None, dial_section: Optional[DialSection] = None):
     if deck.DECK_TYPE != 'Stream Deck +':
         raise NotImplementedError
     

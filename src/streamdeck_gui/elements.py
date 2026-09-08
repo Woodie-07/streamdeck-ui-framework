@@ -141,7 +141,7 @@ class Section[T: OneOfElement](VisibilityAware, Element):
     def attach(self, parent, root):
         super().attach(parent, root)
         for i, item in enumerate(self._items):
-            if item is not None: item.attach(parent, root, i)
+            if item is not None: item.attach(self, root, i)
 
     def detach(self):
         super().detach()

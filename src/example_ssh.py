@@ -4,10 +4,10 @@ from StreamDeck.DeviceManager import DeviceManager
 from PIL import Image
 from typing import Optional
 
-from streamdeck_gui.setup import setup
-from streamdeck_gui.elements import ButtonSection, VisibilityAware, Button, StaticTouchscreen, TouchscreenImage, DialSection, Dial
+from streamdeck_gui.setup import init_on
+from streamdeck_gui.elements import ButtonSection, VisibilityAware, Button, StaticTouchscreen, DialSection, Dial
 from streamdeck_gui.events import TouchscreenEvent
-from streamdeck_gui.image import PillowImage
+from streamdeck_gui.image import ButtonImage, TouchscreenImage
 
 def ssh_to(host: str):
     script = f'''
@@ -47,13 +47,13 @@ class SSHHost:
         ssh_to(self._name)
 
 class ServiceButton(VisibilityAware, Button):
-    WHITE_IMG = PillowImage(Image.new("RGB", (120, 120), "WHITE"))
+    WHITE_IMG = ButtonImage(Image.new("RGB", (120, 120), "WHITE"))
 
     @staticmethod
-    def _build_img_with_bg(icon: Image, bg_colour: str) -> PillowImage:
+    def _build_img_with_bg(icon: Image, bg_colour: str) -> ButtonImage:
         img = Image.new("RGBA", icon.size, bg_colour)
         img.paste(icon, (0, 0), icon)
-        return PillowImage(img)
+        return ButtonImage(img)
 
     def __init__(self, service: SSHHost, icon: Image.Image):
         super().__init__()
@@ -71,10 +71,10 @@ class ServiceButton(VisibilityAware, Button):
             old_state = self._state
             self._state = await self._service.is_up()
             if not self._down and old_state != self._state and self._visible:
-                self._draw_image(self._ok_image if self._state else self._bad_image) 
+                self.draw_image(self._ok_image if self._state else self._bad_image) 
             await asyncio.sleep(10)
 
-    def get_image(self) -> PillowImage:
+    def get_image(self) -> ButtonImage:
         match self._state:
             case True: return self._ok_image
             case False: return self._bad_image
@@ -82,15 +82,15 @@ class ServiceButton(VisibilityAware, Button):
 
     def set_visible(self) -> None:
         super().set_visible()
-        self._draw_image(self.get_image()) 
+        self.draw_image(self.get_image()) 
 
     def down(self) -> None:
         self._down = True
-        self._draw_image(self.WHITE_IMG)
-        asyncio.get_running_loop().run_in_executor(None, self._service.open)
+        self.draw_image(self.WHITE_IMG)
 
     def up(self) -> None:
-        self._draw_image(self.get_image())
+        asyncio.get_running_loop().run_in_executor(None, self._service.open)
+        self.draw_image(self.get_image())
 
 class LogTouchscreen(StaticTouchscreen):
     def update(self, event: TouchscreenEvent) -> None:
@@ -112,10 +112,15 @@ async def main():
     for deck in streamdecks:
         pi_img = Image.open("pi.png").resize((120, 120))
         server_img = Image.open("server.png").resize((120, 120))
-        setup(deck, ButtonSection([
-            ServiceButton(SSHHost("pi5-nas"), pi_img),
-            *(ServiceButton(SSHHost(name), server_img) for name in ("server1", "server2", "server3", "server4", "server5", "server6", "server7"))
-        ]), LogTouchscreen(TouchscreenImage.from_file("btn.webp")), DialSection([LogDial() for _ in range(4)]))
+        root = init_on(deck)
+        root.set_sections(
+            ButtonSection(
+                ServiceButton(SSHHost("pi"), pi_img),
+                *(ServiceButton(SSHHost(name), server_img) for name in ("server1", "server2", "server3", "server4", "server5", "server6", "server7"))
+            ),
+            LogTouchscreen(TouchscreenImage.from_file("btn.webp")),
+            DialSection(*(LogDial() for _ in range(4)))
+        )
         decks.add(deck)
 
     for deck in decks: await deck.wait()

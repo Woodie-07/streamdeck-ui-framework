@@ -5,3 +5,7 @@ Currently, there are two examples:
 - `example_ssh.py` - runs on all Stream Decks found, logs all input to the 4 dials, displays a static image on the touchscreen and logs touchscreen input, and displays 8 SSH hosts on the buttons which have their current status indicated by their background colour and which can be opened by pressing the button.
 
 All examples are designed to work with my fork of the python-elgato-streamdeck library, but could be made to work with the original pretty easily.
+
+Images can be reused. Elements cannot be in multiple places at once. Sections can be in multiple menus as long as the menus are never active simultaneously (multiple devices).
+
+Since the elements themselves are responsible for drawing, you should use BlankButton/BlankTouchscreen when you want to clear anything that was previously there. If using the menu system, the Menu will initialise unprovided sections to Blanks where required. Though, BlankButtons should still be used for unused button spaces in any provided ButtonSection.

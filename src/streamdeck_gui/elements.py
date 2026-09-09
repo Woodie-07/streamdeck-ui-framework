@@ -159,7 +159,11 @@ class Button(OneOfElement, Pressable, Drawable):
 class Section[T: OneOfElement](VisibilityAware, Element):
     def __init__(self, *items: Optional[T]) -> None:
         super().__init__()
-        self._items: List[Optional[T]] = list(islice(chain(items, repeat(None)), 8)) # pad items with None to size 8
+        self._items: List[Optional[T]] = list(self._pad(*items)) # pad items with None to size 8
+
+    @staticmethod
+    def _pad(*items: Optional[T]) -> islice[Optional[T]]:
+        return islice(chain(items, repeat(None)), 8)
 
     def attach(self, parent, root):
         super().attach(parent, root)
@@ -188,13 +192,27 @@ class Section[T: OneOfElement](VisibilityAware, Element):
         self._items[idx] = None
         return item
 
-    def set(self, idx: int, item: Optional[T]) -> Optional[T]:
-        prev = self.remove(idx)
+    def _attach(self, idx: int, item: Optional[T]):
         self._items[idx] = item
-        if item is None: return
         item.attach(self, self.root, idx)
         if self._visible: item.set_visible()
-        return prev   
+
+
+    def set(self, idx: int, item: Optional[T]) -> Optional[T]:
+        if self._items[idx] is item: return
+        prev = self.remove(idx)
+        if item is None: return
+        self._attach(idx, item)
+        return prev
+
+    def update(self, *items: Optional[T]):
+        for i, item in enumerate(self._pad(*items)):
+            if item is self._items[i]: continue
+            self.remove(i)
+
+        for i, item in enumerate(self._pad(*items)):
+            if item is self._items[i]: continue
+            self._attach(i, item)
 
 class PressableSection[T: Pressable](Section[T]):
     def press_update(self, event: PressEvent) -> None:
@@ -212,6 +230,8 @@ class Touchscreen(Element, Drawable):
 
 class Dial(OneOfElement, Pressable):
     def turn(value: int) -> None: pass
+    def down(self) -> None: pass
+    def up(self) -> None: pass
 
 class DialSection(PressableSection[Dial]):
     def turn(self, event: DialTurnEvent) -> None:

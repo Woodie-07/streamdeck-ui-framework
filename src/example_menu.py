@@ -3,7 +3,7 @@ from PIL import Image, ImageDraw
 
 from streamdeck_gui.setup import init_first
 from streamdeck_gui.image import ButtonImage, TouchscreenImage
-from streamdeck_gui.elements import StaticButton, ButtonSection, StaticTouchscreen, BlankButton, BlankTouchscreen
+from streamdeck_gui.elements import StaticButton, ButtonSection, StaticTouchscreen, BlankButton
 from streamdeck_gui.menu import Menu, MenuController
 
 class CallbackButton(StaticButton):

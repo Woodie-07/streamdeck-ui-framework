@@ -2,7 +2,6 @@ from typing import Optional
 from StreamDeck.DeviceManager import StreamDeck, DeviceManager
 
 from .elements import ButtonSection, Touchscreen, DialSection, RootElement
-from .menu import MenuController, Menu
 
 def setup_first(btn_section: Optional[ButtonSection] = None, touchscreen: Optional[Touchscreen] = None, dial_section: Optional[DialSection] = None) -> Optional[StreamDeck]:
     deck, root = init_first()
